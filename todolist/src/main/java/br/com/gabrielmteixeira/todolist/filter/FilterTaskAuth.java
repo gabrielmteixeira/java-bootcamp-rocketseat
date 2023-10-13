@@ -23,32 +23,41 @@ public class FilterTaskAuth extends OncePerRequestFilter {
 
   @Override
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-      throws ServletException, IOException {
-    // get authentication (username and password)
-    var authorization = request.getHeader("Authorization");
-    var authEncoded = authorization.substring("Basic".length()).trim(); // Trim removes empty spaces
-
-    // Basic auth is encoded in Base64
-    // decode() returns a byte array that must be converted to a string
-    byte[] authDecode = Base64.getDecoder().decode(authEncoded);
-    var authString = new String(authDecode);
+  throws ServletException, IOException {
     
-    String[] credentials = authString.split(":");
-    String username = credentials[0];
-    String password = credentials[1];
+    // Only verify login for "/tasks" route
+    var servletPath = request.getServletPath();
+    if(servletPath.startsWith("/tasks/")) {
+      // get authentication (username and password)
+      var authorization = request.getHeader("Authorization");
+      var authEncoded = authorization.substring("Basic".length()).trim(); // Trim removes empty spaces
     
-    // validate user
-    var user = this.userRepository.findByUsername(username);
-    if (user == null) {
-      response.sendError(401);
-    } else {
-      // validate  password
-      var passwordVerify = BCrypt.verifyer().verify(password.toCharArray(), user.getPassword());
-      if (passwordVerify.verified) {
-        filterChain.doFilter(request, response);
-      } else {
+      // Basic auth is encoded in Base64
+      // decode() returns a byte array that must be converted to a string
+      byte[] authDecode = Base64.getDecoder().decode(authEncoded);
+      var authString = new String(authDecode);
+      
+      String[] credentials = authString.split(":");
+      String username = credentials[0];
+      String password = credentials[1];
+      
+      // validate user
+      var user = this.userRepository.findByUsername(username);
+      if (user == null) {
         response.sendError(401);
-      }
+      } else {
+        // validate  password
+        var passwordVerify = BCrypt.verifyer().verify(password.toCharArray(), user.getPassword());
+        if (passwordVerify.verified) {
+          request.setAttribute("idUser", user.getId());
+          filterChain.doFilter(request, response);
+        } else {
+          response.sendError(401);
+        }
+    }
+    
+    } else {
+      filterChain.doFilter(request, response);
     }
   }
 }
